@@ -1,0 +1,30 @@
+
+<!-- templates/index.html -->
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="text-center">
+    <h1>Jriit Result Management System</h1>
+    <p class="lead">A platform for teachers to post results and students to view their results</p>
+    
+    {% if 'user_id' not in session %}
+        <div class="mt-4">
+            <a href="{{ url_for('login') }}" class="btn btn-primary me-2">Login</a>
+            <a href="{{ url_for('register') }}" class="btn btn-outline-primary">Register</a>
+        </div>
+    {% else %}
+        <div class="mt-4">
+            <a href="{{ url_for('dashboard') }}" class="btn btn-success">Go to Dashboard</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+<!-- templates/register.html -->
+
+
+
+
+
+
+

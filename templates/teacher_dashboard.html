@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Teacher Dashboard</h2>
+<p>Welcome, {{ session['username'] }}!</p>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h4>Quick Actions</h4>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('add_course') }}" class="btn btn-primary">Add New Course</a>
+                    <a href="{{ url_for('add_result') }}" class="btn btn-success">Post New Result</a>
+                    <a href="{{ url_for('view_students') }}" class="btn btn-info">View All Students</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h4>Available Courses</h4>
+            </div>
+            <div class="card-body">
+                {% if courses %}
+                    <ul class="list-group">
+                        {% for course in courses %}
+                            <li class="list-group-item">{{ course.course_code }} - {{ course.course_name }}</li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p>No courses available. <a href="{{ url_for('add_course') }}">Add a course</a></p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Student Dashboard</h2>
+<p>Welcome, {{ student.name }}!</p>
+<p><strong>Roll Number:</strong> {{ student.roll_number }}</p>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h4>Your Results</h4>
+    </div>
+    <div class="card-body">
+        {% if results %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Course Code</th>
+                            <th>Course Name</th>
+                            <th>Semester</th>
+                            <th>Marks</th>
+                            <th>Grade</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for result in results %}
+                            <tr>
+                                <td>{{ result.course_code }}</td>
+                                <td>{{ result.course_name }}</td>
+                                <td>{{ result.semester }}</td>
+                                <td>{{ result.marks }}</td>
+                                <td>
+                                    <span class="badge {% if result.grade == 'F' %}bg-danger{% elif result.grade == 'A+' %}bg-success{% else %}bg-primary{% endif %}">
+                                        {{ result.grade }}
+                                    </span>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p>No results available yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
