@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}My Courses - Student Management System{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">My Courses</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <span class="badge bg-info me-2">Semester {{ student.semester }}</span>
+        <span class="badge bg-secondary">{{ student.program }}</span>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Enrolled Courses Section -->
+    <div class="col-lg-8">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Enrolled Courses</h6>
+            </div>
+            <div class="card-body">
+                {% if enrollments %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Course Code</th>
+                                <th>Course Name</th>
+                                <th>Credit Hours</th>
+                                <th>Teacher</th>
+                                <th>Semester</th>
+                                <th>Academic Year</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for enrollment in enrollments %}
+                            <tr>
+                                <td><strong>{{ enrollment.course.course_code }}</strong></td>
+                                <td>{{ enrollment.course.course_name }}</td>
+                                <td>
+                                    <span class="badge bg-primary">{{ enrollment.course.credit_hours }}</span>
+                                </td>
+                                <td>{{ enrollment.course.teacher.user.full_name }}</td>
+                                <td>{{ enrollment.semester }}</td>
+                                <td>{{ enrollment.academic_year }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-book text-muted" style="font-size: 3rem;"></i>
+                    <p class="text-muted mt-2">You are not enrolled in any courses yet.</p>
+                    <small class="text-muted">Browse available courses in the section below to enroll.</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Available Courses Section -->
+    <div class="col-lg-4">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-success">Available Courses</h6>
+            </div>
+            <div class="card-body">
+                {% if available_courses %}
+                {% for course in available_courses %}
+                <div class="card mb-3 border-success">
+                    <div class="card-body p-3">
+                        <h6 class="card-title text-success">{{ course.course_code }}</h6>
+                        <p class="card-text small mb-2">{{ course.course_name }}</p>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <small class="text-muted">Credits: {{ course.credit_hours }}</small>
+                            <small class="text-muted">Sem: {{ course.semester }}</small>
+                        </div>
+                        <small class="text-muted d-block mb-2">
+                            Teacher: {{ course.teacher.user.full_name }}
+                        </small>
+                        
+                        <!-- Enrollment Form -->
+                        <form method="POST" action="{{ url_for('student_enroll') }}" class="d-inline">
+                            <input type="hidden" name="course_id" value="{{ course.id }}">
+                            <button type="submit" class="btn btn-success btn-sm w-100" 
+                                    onclick="return confirm('Are you sure you want to enroll in {{ course.course_name }}?')">
+                                <i class="bi bi-plus-circle"></i> Enroll
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="text-center py-3">
+                    <i class="bi bi-check-circle text-success" style="font-size: 2rem;"></i>
+                    <p class="text-muted mt-2 small">No more courses available for enrollment in your current semester.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Student Info Card -->
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-info">Enrollment Information</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <strong>Student ID:</strong>
+                    <span class="float-end">{{ student.student_id }}</span>
+                </div>
+                <div class="mb-2">
+                    <strong>Program:</strong>
+                    <span class="float-end">{{ student.program }}</span>
+                </div>
+                <div class="mb-2">
+                    <strong>Current Semester:</strong>
+                    <span class="float-end">{{ student.semester }}</span>
+                </div>
+                <div class="mb-2">
+                    <strong>Session:</strong>
+                    <span class="float-end">{{ student.session }}</span>
+                </div>
+                <hr>
+                <div class="mb-0">
+                    <strong>Total Enrolled:</strong>
+                    <span class="float-end badge bg-primary">{{ enrollments|length }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Course Enrollment Guidelines -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                <h6 class="m-0"><i class="bi bi-info-circle"></i> Course Enrollment Guidelines</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6 class="text-info">Enrollment Process</h6>
+                        <ul class="small">
+                            <li>Click "Enroll" button for available courses</li>
+                            <li>Confirm your enrollment when prompted</li>
+                            <li>Teacher will be notified of your enrollment</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="text-info">Course Availability</h6>
+                        <ul class="small">
+                            <li>Only courses for your current semester are shown</li>
+                            <li>Only courses from your program are available</li>
+                            <li>Already enrolled courses are not shown</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="text-info">Important Notes</h6>
+                        <ul class="small">
+                            <li>Enrollment is immediate and cannot be undone</li>
+                            <li>Contact admin if you need to drop a course</li>
+                            <li>Attend all classes once enrolled</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Add confirmation dialog for enrollment
+document.addEventListener('DOMContentLoaded', function() {
+    const enrollForms = document.querySelectorAll('form[action="{{ url_for("student_enroll") }}"]');
+    
+    enrollForms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+            const courseName = this.closest('.card-body').querySelector('.card-title').textContent.trim();
+            if (!confirm(`Are you sure you want to enroll in ${courseName}?`)) {
+                e.preventDefault();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
