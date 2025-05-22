@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Student Dashboard - Student Management System{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Student Dashboard</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary">
+                Academic Year: {{ student.academic_year }}
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Cards Row -->
+<div class="row mb-4">
+    <!-- Enrolled Courses Card -->
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            Enrolled Courses
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ enrolled_courses }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-book-fill text-primary" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Published Results Card -->
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            Published Results
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ published_results }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-trophy-fill text-success" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CGPA Card -->
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-info h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                            Current CGPA
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ cgpa }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-graph-up text-info" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Current Semester Card -->
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-warning h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            Current Semester
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ student.semester }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-calendar-fill text-warning" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content Row -->
+<div class="row">
+    <!-- Recent Results Section -->
+    <div class="col-lg-8">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Recent Results</h6>
+            </div>
+            <div class="card-body">
+                {% if recent_results %}
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Course</th>
+                                <th>Grade</th>
+                                <th>Total Marks</th>
+                                <th>Date Added</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for result in recent_results %}
+                            <tr>
+                                <td>{{ result.course.course_name }}</td>
+                                <td>
+                                    <span class="badge bg-{% if result.grade in ['A+', 'A', 'A-'] %}success{% elif result.grade in ['B+', 'B', 'B-'] %}primary{% elif result.grade in ['C+', 'C'] %}warning{% else %}danger{% endif %}">
+                                        {{ result.grade }}
+                                    </span>
+                                </td>
+                                <td>{{ result.total_marks }}/100</td>
+                                <td>{{ result.date_added.strftime('%Y-%m-%d') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-3">
+                    <a href="{{ url_for('student_results') }}" class="btn btn-primary btn-sm">
+                        <i class="bi bi-eye"></i> View All Results
+                    </a>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-trophy text-muted" style="font-size: 3rem;"></i>
+                    <p class="text-muted mt-2">No results available yet.</p>
+                    <small class="text-muted">Results will appear here once your teachers publish them.</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Student Information Sidebar -->
+    <div class="col-lg-4">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Student Information</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>Name:</strong>
+                    <p class="mb-1">{{ student.user.full_name }}</p>
+                </div>
+                <div class="mb-3">
+                    <strong>Student ID:</strong>
+                    <p class="mb-1">{{ student.student_id }}</p>
+                </div>
+                <div class="mb-3">
+                    <strong>Program:</strong>
+                    <p class="mb-1">{{ student.program }}</p>
+                </div>
+                <div class="mb-3">
+                    <strong>Semester:</strong>
+                    <p class="mb-1">{{ student.semester }}</p>
+                </div>
+                <div class="mb-3">
+                    <strong>Session:</strong>
+                    <p class="mb-1">{{ student.session }}</p>
+                </div>
+                <div class="mb-3">
+                    <strong>Email:</strong>
+                    <p class="mb-1">{{ student.user.email }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions Card -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Quick Actions</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('student_courses') }}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-book"></i> View Courses
+                    </a>
+                    <a href="{{ url_for('student_results') }}" class="btn btn-outline-success btn-sm">
+                        <i class="bi bi-trophy"></i> View Results
+                    </a>
+                    <a href="{{ url_for('notifications') }}" class="btn btn-outline-info btn-sm">
+                        <i class="bi bi-bell"></i> Notifications
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

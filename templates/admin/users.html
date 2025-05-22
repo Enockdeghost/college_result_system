@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Users Management | School Management System{% endblock %}
+
+{% block content %}
+<!-- Users Management page -->
+<!-- This page displays all users and allows filtering by role -->
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-users me-2"></i>Users Management</h1>
+        <p class="text-muted">View and manage all registered users</p>
+    </div>
+    <div class="col-auto">
+        <a href="{{ url_for('admin_add_teacher') }}" class="btn btn-primary">
+            <i class="fas fa-user-plus me-1"></i> Add Teacher
+        </a>
+    </div>
+</div>
+
+<!-- Filter options -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="btn-group" role="group">
+                    <a href="{{ url_for('admin_users') }}" class="btn btn-outline-primary {% if selected_role == 'all' %}active{% endif %}">
+                        All Users
+                    </a>
+                    <a href="{{ url_for('admin_users', role='student') }}" class="btn btn-outline-primary {% if selected_role == 'student' %}active{% endif %}">
+                        Students
+                    </a>
+                    <a href="{{ url_for('admin_users', role='teacher') }}" class="btn btn-outline-primary {% if selected_role == 'teacher' %}active{% endif %}">
+                        Teachers
+                    </a>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="input-group">
+                    <input type="text" class="form-control" placeholder="Search users..." id="userSearch">
+                    <button class="btn btn-outline-secondary" type="button">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Users list -->
+<div class="card shadow-sm">
+    <div class="card-header bg-white">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                {% if selected_role == 'student' %}
+                    Student Users
+                {% elif selected_role == 'teacher' %}
+                    Teacher Users
+                {% else %}
+                    All Users
+                {% endif %}
+            </h5>
+            <span class="badge bg-primary">{{ users|length }} Users</span>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Full Name</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.id }}</td>
+                        <td>{{ user.full_name }}</td>
+                        <td>{{ user.username }}</td>
+                        <td>{{ user.email }}</td>
+                        <td>
+                            <span class="badge {% if user.role == 'teacher' %}bg-success{% elif user.role == 'student' %}bg-primary{% else %}bg-secondary{% endif %}">
+                                {{ user.role|capitalize }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge {% if user.status == 'approved' %}bg-success{% elif user.status == 'pending' %}bg-warning{% else %}bg-danger{% endif %}">
+                                {{ user.status|capitalize }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    Actions
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="#"><i class="fas fa-eye me-2"></i> View Details</a></li>
+                                    <li><a class="dropdown-item" href="#"><i class="fas fa-edit me-2"></i> Edit</a></li>
+                                    {% if user.status == 'approved' %}
+                                    <li><a class="dropdown-item text-warning" href="#"><i class="fas fa-ban me-2"></i> Suspend</a></li>
+                                    {% elif user.status == 'suspended' %}
+                                    <li><a class="dropdown-item text-success" href="#"><i class="fas fa-check-circle me-2"></i> Reactivate</a></li>
+                                    {% endif %}
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item text-danger" href="#"><i class="fas fa-trash-alt me-2"></i> Delete</a></li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Simple search functionality
+    document.getElementById('userSearch').addEventListener('keyup', function() {
+        const searchTerm = this.value.toLowerCase();
+        const tableRows = document.querySelectorAll('tbody tr');
+        
+        tableRows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            if(text.includes(searchTerm)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+</script>
+{% endblock %}

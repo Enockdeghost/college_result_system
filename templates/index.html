@@ -1,30 +1,36 @@
 
-<!-- templates/index.html -->
-{% extends 'base.html' %}
+{% extends "base.html" %}
+
+{% block title %}Login - College Result Management System{% endblock %}
 
 {% block content %}
-<div class="text-center">
-    <h1>Jriit Result Management System</h1>
-    <p class="lead">A platform for teachers to post results and students to view their results</p>
-    
-    {% if 'user_id' not in session %}
-        <div class="mt-4">
-            <a href="{{ url_for('login') }}" class="btn btn-primary me-2">Login</a>
-            <a href="{{ url_for('register') }}" class="btn btn-outline-primary">Register</a>
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="card-title mb-0"><i class="fas fa-sign-in-alt me-2"></i>Login</h4>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" action="{{ url_for('login') }}">
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="username" name="username" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">Login</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="card-footer text-center">
+                    <p class="mb-0">Don't have an account? <a href="{{ url_for('register') }}">Register as a student</a></p>
+                </div>
+            </div>
         </div>
-    {% else %}
-        <div class="mt-4">
-            <a href="{{ url_for('dashboard') }}" class="btn btn-success">Go to Dashboard</a>
-        </div>
-    {% endif %}
+    </div>
 </div>
 {% endblock %}
-
-<!-- templates/register.html -->
-
-
-
-
-
-
-

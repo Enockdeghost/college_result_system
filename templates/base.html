@@ -1,94 +1,206 @@
-<!-- templates/base.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>College Result Management System</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <title>{% block title %}College Result Management System{% endblock %}</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  
     <style>
-        body {
-            padding-top: 20px;
+        .sidebar {
+            min-height: calc(100vh - 56px);
+            background-color: #343a40;
         }
-        .flash-messages {
-            margin-bottom: 20px;
+        .sidebar a {
+            color: rgba(255, 255, 255, 0.8);
+            transition: all 0.3s;
+        }
+        .sidebar a:hover, .sidebar a.active {
+            color: #fff;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .content {
+            padding: 20px;
+        }
+        .navbar .notification-badge {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            font-size: 0.6rem;
+        }
+        .card-dashboard {
+            transition: all 0.3s;
+        }
+        .card-dashboard:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
         }
     </style>
+    {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <div class="container">
-        <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
-            <div class="container-fluid">
-                <a class="navbar-brand" href="{{ url_for('index') }}">Jriit Result System</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav">
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="fas fa-graduation-cap me-2"></i>CollegeResult
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('index') }}">Home</a>
+                    </li>
+                    {% if current_user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
+                    </li>
+                    {% endif %}
+                </ul>
+                <ul class="navbar-nav">
+                    {% if current_user.is_authenticated %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-bell position-relative">
+                                {% if unread_notifications > 0 %}
+                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger notification-badge">
+                                    {{ unread_notifications }}
+                                </span>
+                                {% endif %}
+                            </i>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                            <li><h6 class="dropdown-header">Notifications</h6></li>
+                            <li><a class="dropdown-item" href="{{ url_for('notifications') }}">View All Notifications</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user me-1"></i> {{ current_user.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li><h6 class="dropdown-header">{{ current_user.full_name }}</h6></li>
+                            <li><h6 class="dropdown-header text-muted">{{ current_user.role.capitalize() }}</h6></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}">Logout</a></li>
+                        </ul>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('login') }}">Login</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('register') }}">Register</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            {% if current_user.is_authenticated %}
+            <div class="col-md-2 d-none d-md-block sidebar p-0">
+                <div class="h-100 d-flex flex-column p-3">
+                    {% block sidebar %}
+                    <!-- Default sidebar for all users -->
+                    <ul class="nav nav-pills flex-column mb-auto">
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('index') }}">Home</a>
+                            <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                                <i class="fas fa-tachometer-alt me-2"></i> Dashboard
+                            </a>
                         </li>
-                        {% if 'user_id' in session %}
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
-                            </li>
-                            {% if session['role'] == 'teacher' %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{{ url_for('add_course') }}">Add Course</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{{ url_for('add_result') }}">Add Result</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{{ url_for('view_students') }}">View Students</a>
-                                </li>
-                            {% endif %}
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
-                            </li>
-                        {% else %}
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('login') }}">Login</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('register') }}">Register</a>
-                            </li>
+                        {% if current_user.role == 'admin' %}
+                        <!-- Admin .lukumay chok -->
+                        <li class="nav-item">
+                            <a href="{{ url_for('admin_pending_users') }}" class="nav-link {% if request.endpoint == 'admin_pending_users' %}active{% endif %}">
+                                <i class="fas fa-user-clock me-2"></i> Pending Users
+                                {% if pending_users > 0 %}
+                                <span class="badge bg-danger float-end">{{ pending_users }}</span>
+                                {% endif %}
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{{ url_for('admin_users') }}" class="nav-link {% if request.endpoint == 'admin_users' %}active{% endif %}">
+                                <i class="fas fa-users me-2"></i> Manage Users
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{{ url_for('admin_courses') }}" class="nav-link {% if request.endpoint == 'admin_courses' %}active{% endif %}">
+                                <i class="fas fa-book me-2"></i> Manage Courses
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{{ url_for('admin_results') }}" class="nav-link {% if request.endpoint == 'admin_results' %}active{% endif %}">
+                                <i class="fas fa-chart-bar me-2"></i> Manage Results
+                            </a>
+                        </li>
+                        {% elif current_user.role == 'teacher' %}
+                        <!-- Teacher sidebar -->
+                        <li class="nav-item">
+                            <a href="{{ url_for('teacher_courses') }}" class="nav-link {% if request.endpoint == 'teacher_courses' %}active{% endif %}">
+                                <i class="fas fa-book me-2"></i> My Courses
+                            </a>
+                        </li>
+                        {% elif current_user.role == 'student' %}
+                        <!-- Student sidebar  -->
+                        <li class="nav-item">
+                            <a href="{{ url_for('student_courses') }}" class="nav-link {% if request.endpoint == 'student_courses' %}active{% endif %}">
+                                <i class="fas fa-book me-2"></i> My Courses
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{{ url_for('student_results') }}" class="nav-link {% if request.endpoint == 'student_results' %}active{% endif %}">
+                                <i class="fas fa-chart-line me-2"></i> My Results
+                            </a>
+                        </li>
                         {% endif %}
+                        <li class="nav-item">
+                            <a href="{{ url_for('notifications') }}" class="nav-link {% if request.endpoint == 'notifications' %}active{% endif %}">
+                                <i class="fas fa-bell me-2"></i> Notifications
+                                {% if unread_notifications > 0 %}
+                                <span class="badge bg-danger float-end">{{ unread_notifications }}</span>
+                                {% endif %}
+                            </a>
+                        </li>
                     </ul>
+                    {% endblock %}
+                    <hr>
+                    <div class="text-center text-light">
+                        <small>&copy;  CollegeResult</small>
+                    </div>
                 </div>
             </div>
-        </nav>
-
-        <div class="flash-messages">
-            {% with messages = get_flashed_messages(with_categories=true) %}
+            <main class="col-md-10 ms-sm-auto col-lg-10 px-md-4 content">
+            {% else %}
+            <main class="col-12 px-md-4 content">
+            {% endif %}
+                <!-- masaa messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
-                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    <div class="alert alert-{{ category }} alert-dismissible fade show mt-3" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
                     {% endfor %}
                 {% endif %}
-            {% endwith %}
-        </div>
+                {% endwith %}
 
-        {% block content %}{% endblock %}
+                <!-- Main content -->
+                {% block content %}{% endblock %}
+            </main>
+        </div>
     </div>
 
-    <script>
-        function toggleStudentFields() {
-            const role = document.getElementById('role').value;
-            const studentFields = document.getElementById('student-fields');
-            
-            if (role === 'student') {
-                studentFields.style.display = 'block';
-                document.getElementById('name').required = true;
-                document.getElementById('roll_number').required = true;
-            } else {
-                studentFields.style.display = 'none';
-                document.getElementById('name').required = false;
-                document.getElementById('roll_number').required = false;
-            }
-        }
-    </script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+
+    {% block scripts %}{% endblock %}
 </body>
 </html>
