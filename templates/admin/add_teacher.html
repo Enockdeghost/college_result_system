@@ -1,0 +1,227 @@
+{% extends "base.html" %} {% block title %}Add Teacher | School Management
+System{% endblock %} {% block content %}
+<!-- Add Teacher page -->
+<!-- This page allows admins to add new teacher accounts to the system -->
+<div class="row mb-4">
+  <div class="col">
+    <h1><i class="fas fa-user-plus me-2"></i>Add New Teacher</h1>
+    <p class="text-muted">Create a new teacher account in the system</p>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-header bg-white">
+        <h5 class="mb-0">Teacher Information</h5>
+      </div>
+      <div class="card-body">
+        <form action="{{ url_for('admin_add_teacher') }}" method="post">
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="full_name" class="form-label"
+                >Full Name <span class="text-danger">*</span></label
+              >
+              <input
+                type="text"
+                class="form-control"
+                id="full_name"
+                name="full_name"
+                required
+              />
+            </div>
+            <div class="col-md-6">
+              <label for="employee_id" class="form-label"
+                >Employee ID <span class="text-danger">*</span></label
+              >
+              <input
+                type="text"
+                class="form-control"
+                id="employee_id"
+                name="employee_id"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="department" class="form-label"
+                >Department <span class="text-danger">*</span></label
+              >
+              <select
+                class="form-select"
+                id="department"
+                name="department"
+                required
+              >
+                <option value="" selected disabled>Select Department</option>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Mathematics">Mathematics</option>
+                <option value="Physics">Physics</option>
+                <option value="Chemistry">Chemistry</option>
+                <option value="Biology">Biology</option>
+                <option value="English">English</option>
+                <option value="History">History</option>
+                <option value="Geography">Geography</option>
+                <option value="Economics">Economics</option>
+                <option value="Business">Business</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="designation" class="form-label"
+                >Designation <span class="text-danger">*</span></label
+              >
+              <select
+                class="form-select"
+                id="designation"
+                name="designation"
+                required
+              >
+                <option value="" selected disabled>Select Designation</option>
+                <option value="Professor">Professor</option>
+                <option value="Associate Professor">Associate Professor</option>
+                <option value="Assistant Professor">Assistant Professor</option>
+                <option value="Lecturer">Lecturer</option>
+                <option value="Lab Instructor">Lab Instructor</option>
+              </select>
+            </div>
+          </div>
+
+          <hr class="my-4" />
+          <h5>Account Details</h5>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="email" class="form-label"
+                >Email Address <span class="text-danger">*</span></label
+              >
+              <input
+                type="email"
+                class="form-control"
+                id="email"
+                name="email"
+                required
+              />
+            </div>
+            <div class="col-md-6">
+              <label for="username" class="form-label"
+                >Username <span class="text-danger">*</span></label
+              >
+              <input
+                type="text"
+                class="form-control"
+                id="username"
+                name="username"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="password" class="form-label"
+                >Password <span class="text-danger">*</span></label
+              >
+              <input
+                type="password"
+                class="form-control"
+                id="password"
+                name="password"
+                required
+              />
+            </div>
+            <div class="col-md-6">
+              <label for="confirm_password" class="form-label"
+                >Confirm Password <span class="text-danger">*</span></label
+              >
+              <input
+                type="password"
+                class="form-control"
+                id="confirm_password"
+                name="confirm_password"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="mt-4 d-flex justify-content-between">
+            <a
+              href="{{ url_for('admin_users', role='teacher') }}"
+              class="btn btn-outline-secondary"
+            >
+              <i class="fas fa-arrow-left me-1"></i> Back to Teachers
+            </a>
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save me-1"></i> Create Teacher Account
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-header bg-white">
+        <h5 class="mb-0">Information</h5>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-info">
+          <h6><i class="fas fa-info-circle me-2"></i>Important Notes</h6>
+          <ul class="mb-0">
+            <li>
+              All fields marked with <span class="text-danger">*</span> are
+              required.
+            </li>
+            <li>The username must be unique in the system.</li>
+            <li>The employee ID must be unique for each teacher.</li>
+            <li>Password should be at least 8 characters long.</li>
+          </ul>
+        </div>
+
+        <div class="alert alert-warning">
+          <h6>
+            <i class="fas fa-exclamation-triangle me-2"></i>Account Access
+          </h6>
+          <p class="mb-0">
+            The teacher will have immediate access to the system once created.
+            Consider communicating the login details securely.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block extra_js %}
+<script>
+  // Password validation
+  const password = document.getElementById("password");
+  const confirmPassword = document.getElementById("confirm_password");
+
+  function validatePassword() {
+    if (password.value != confirmPassword.value) {
+      confirmPassword.setCustomValidity("Passwords don't match");
+    } else {
+      confirmPassword.setCustomValidity("");
+    }
+  }
+
+  password.addEventListener("change", validatePassword);
+  confirmPassword.addEventListener("keyup", validatePassword);
+
+  // Auto-generate username from full name (optional)
+  document.getElementById("full_name").addEventListener("blur", function () {
+    const fullName = this.value;
+    const usernameField = document.getElementById("username");
+
+    if (fullName && !usernameField.value) {
+      const username = fullName
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "")
+        .substring(0, 15);
+      usernameField.value = username;
+    }
+  });
+</script>
+{% endblock %}
