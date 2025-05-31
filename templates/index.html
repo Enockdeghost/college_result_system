@@ -1,30 +1,59 @@
 
-<!-- templates/index.html -->
-{% extends 'base.html' %}
+{% extends "base.html" %}
+
+{% block title %}Login - College Result Management System{% endblock %}
 
 {% block content %}
-<div class="text-center">
-    <h1>Jriit Result Management System</h1>
-    <p class="lead">A platform for teachers to post results and students to view their results</p>
-    
-    {% if 'user_id' not in session %}
-        <div class="mt-4">
-            <a href="{{ url_for('login') }}" class="btn btn-primary me-2">Login</a>
-            <a href="{{ url_for('register') }}" class="btn btn-outline-primary">Register</a>
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8 text-center">
+            <h1 class="display-4 mb-4">
+                <i class="fas fa-graduation-cap text-primary"></i>
+                Student Management System
+            </h1>
+            <p class="lead mb-5">A comprehensive platform for managing students, teachers, and academic records.</p>
+            
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100 shadow-sm card-stats">
+                        <div class="card-body text-center">
+                            <i class="fas fa-users fa-3x text-primary mb-3"></i>
+                            <h5 class="card-title">Student Portal</h5>
+                            <p class="card-text">View courses, check results, and manage academic information.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100 shadow-sm card-stats">
+                        <div class="card-body text-center">
+                            <i class="fas fa-chalkboard-teacher fa-3x text-success mb-3"></i>
+                            <h5 class="card-title">Teacher Portal</h5>
+                            <p class="card-text">Manage courses, enter grades, and track student progress.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100 shadow-sm card-stats">
+                        <div class="card-body text-center">
+                            <i class="fas fa-user-shield fa-3x text-danger mb-3"></i>
+                            <h5 class="card-title">Admin Portal</h5>
+                            <p class="card-text">Complete system administration and user management.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-5">
+                <a href="/login" class="btn btn-primary btn-lg me-3">
+                    <i class="fas fa-sign-in-alt me-2"></i>Login
+                </a>
+                <a href="/register" class="btn btn-outline-primary btn-lg">
+                    <i class="fas fa-user-plus me-2"></i>Register as Student
+                </a>
+            </div>
         </div>
-    {% else %}
-        <div class="mt-4">
-            <a href="{{ url_for('dashboard') }}" class="btn btn-success">Go to Dashboard</a>
-        </div>
-    {% endif %}
+    </div>
 </div>
 {% endblock %}
-
-<!-- templates/register.html -->
-
-
-
-
-
-
-
