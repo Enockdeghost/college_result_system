@@ -7,7 +7,7 @@ import os
 
 #confgrations
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.urandom(24)
+app.config['SECRET_KEY'] = os.urandom(24)#pick random
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///college_results.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
