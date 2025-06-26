@@ -1,942 +1,1086 @@
-#import libraries 
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+# JRIIT Academic Result Management System (JARMS)
+# Modern Flask-based system for JRIIT Arusha, Tanzania
+
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
+from functools import wraps
 from datetime import datetime
 import os
+import uuid
 
-# Initialize Flask app
+# App Configuration
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///college_result.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///jriit_results.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = 'static/uploads/profiles'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
-# Initialize SQLAlchemy
+# Ensure upload directory exists
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
 db = SQLAlchemy(app)
 
-# Initialize Login Manager
-login_manager = LoginManager(app)
-login_manager.login_view = 'login'
-
-# ---------- mfumo wa db----------
-
-# User model (base for Admin, Teacher, Student)
-class User(db.Model, UserMixin):
+# Database Models
+class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(256), nullable=False)
+    password = db.Column(db.String(200), nullable=False)
+    role = db.Column(db.String(20), nullable=False)  # 'admin', 'teacher', 'academic', 'student'
+    email = db.Column(db.String(120), unique=True, nullable=True)
     full_name = db.Column(db.String(100), nullable=False)
-    role = db.Column(db.String(20), nullable=False)  # admin,mwalimu mwanafunzi
-    status = db.Column(db.String(20), default='pending')  # kuruhusiwa au kukataliwa na admin
+    profile_picture = db.Column(db.String(200), nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    must_change_password = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     
-    # Relationships
-    student_info = db.relationship('Student', backref='user', uselist=False, cascade="all, delete-orphan")
-    teacher_info = db.relationship('Teacher', backref='user', uselist=False, cascade="all, delete-orphan")
-    
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-        
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+    def __repr__(self):
+        return f'<User {self.username}>'
 
-# Student model
 class Student(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    roll_number = db.Column(db.String(20), unique=True, nullable=False)
-    batch = db.Column(db.String(20), nullable=False)
-    program = db.Column(db.String(50), nullable=False)
-    semester = db.Column(db.Integer, nullable=False)
+    registration_number = db.Column(db.String(20), unique=True, nullable=False)
+    current_semester = db.Column(db.Integer, default=1)
+    status = db.Column(db.String(20), default='pending')  # 'pending', 'approved', 'suspended'
+    date_of_birth = db.Column(db.Date, nullable=True)
+    phone_number = db.Column(db.String(15), nullable=True)
+    address = db.Column(db.Text, nullable=True)
     
-    # Relationships
-    enrollments = db.relationship('Enrollment', backref='student', cascade="all, delete-orphan")
-    results = db.relationship('Result', backref='student', cascade="all, delete-orphan")
+    user = db.relationship('User', backref='student_profile')
+    
+    def __repr__(self):
+        return f'<Student {self.registration_number}>'
 
-# Teacher model
 class Teacher(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     employee_id = db.Column(db.String(20), unique=True, nullable=False)
-    department = db.Column(db.String(50), nullable=False)
-    designation = db.Column(db.String(50), nullable=False)
+    department = db.Column(db.String(100), nullable=True)
+    qualification = db.Column(db.String(200), nullable=True)
+    phone_number = db.Column(db.String(15), nullable=True)
     
-    # Relationships
-    courses = db.relationship('Course', backref='teacher', cascade="all, delete-orphan")
+    user = db.relationship('User', backref='teacher_profile')
+    
+    def __repr__(self):
+        return f'<Teacher {self.employee_id}>'
 
-# Course model
-class Course(db.Model):
+class Academic(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    course_code = db.Column(db.String(20), unique=True, nullable=False)
-    course_name = db.Column(db.String(100), nullable=False)
-    credit_hours = db.Column(db.Float, nullable=False)
-    semester = db.Column(db.Integer, nullable=False)
-    program = db.Column(db.String(50), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    employee_id = db.Column(db.String(20), unique=True, nullable=False)
+    department = db.Column(db.String(100), nullable=True)
+    
+    user = db.relationship('User', backref='academic_profile')
+    
+    def __repr__(self):
+        return f'<Academic {self.employee_id}>'
+
+class Subject(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    subject_code = db.Column(db.String(20), unique=True, nullable=False)
+    subject_name = db.Column(db.String(100), nullable=False)
+    semester = db.Column(db.Integer, nullable=False)  # 1-6
+    credit_hours = db.Column(db.Integer, default=3)
+    is_active = db.Column(db.Boolean, default=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<Subject {self.subject_code}>'
+
+class TeacherSubject(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
     teacher_id = db.Column(db.Integer, db.ForeignKey('teacher.id'), nullable=False)
+    subject_id = db.Column(db.Integer, db.ForeignKey('subject.id'), nullable=False)
+    assigned_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    assigned_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True)
     
-    # Relationships
-    enrollments = db.relationship('Enrollment', backref='course', cascade="all, delete-orphan")
-    results = db.relationship('Result', backref='course', cascade="all, delete-orphan")
+    teacher = db.relationship('Teacher', backref='assigned_subjects')
+    subject = db.relationship('Subject', backref='assigned_teachers')
 
-# Enrollment model
-class Enrollment(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    student_id = db.Column(db.Integer, db.ForeignKey('student.id'), nullable=False)
-    course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=False)
-    semester = db.Column(db.Integer, nullable=False)
-    academic_year = db.Column(db.String(20), nullable=False)
-    enrollment_date = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Unique constraint to prevent duplicate enrollments
-    __table_args__ = (db.UniqueConstraint('student_id', 'course_id', 'semester', 'academic_year', name='_student_course_sem_year_uc'),)
-
-# Result model
 class Result(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey('student.id'), nullable=False)
-    course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=False)
-    midterm_marks = db.Column(db.Float, nullable=True)
-    final_marks = db.Column(db.Float, nullable=True)
-    assignment_marks = db.Column(db.Float, nullable=True)
-    attendance_marks = db.Column(db.Float, nullable=True)
-    total_marks = db.Column(db.Float, nullable=True)
-    grade = db.Column(db.String(2), nullable=True)
-    grade_point = db.Column(db.Float, nullable=True)
-    remarks = db.Column(db.String(100), nullable=True)
+    subject_id = db.Column(db.Integer, db.ForeignKey('subject.id'), nullable=False)
+    teacher_id = db.Column(db.Integer, db.ForeignKey('teacher.id'), nullable=False)
+    marks = db.Column(db.Float, nullable=False)
+    grade = db.Column(db.String(2), nullable=False)
     semester = db.Column(db.Integer, nullable=False)
-    academic_year = db.Column(db.String(20), nullable=False)
-    date_added = db.Column(db.DateTime, default=datetime.utcnow)
-    status = db.Column(db.String(20), default='pending')  # pending, published
+    academic_year = db.Column(db.String(10), nullable=False)
+    status = db.Column(db.String(20), default='submitted')  # 'submitted', 'approved', 'rejected'
+    submitted_at = db.Column(db.DateTime, default=datetime.utcnow)
+    reviewed_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    reviewed_at = db.Column(db.DateTime, nullable=True)
+    comments = db.Column(db.Text, nullable=True)
     
-    # Unique constraint to prevent duplicate results
-    __table_args__ = (db.UniqueConstraint('student_id', 'course_id', 'semester', 'academic_year', name='_student_course_result_uc'),)
+    student = db.relationship('Student', backref='results')
+    subject = db.relationship('Subject', backref='results')
+    teacher = db.relationship('Teacher', backref='submitted_results')
+    
+    def __repr__(self):
+        return f'<Result {self.student_id}-{self.subject_id}>'
 
-# Notification model
-class Notification(db.Model):
+class ActivityLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    message = db.Column(db.String(255), nullable=False)
-    is_read = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    link = db.Column(db.String(255), nullable=True)
+    action = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    ip_address = db.Column(db.String(45), nullable=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref='activity_logs')
 
-# -login user loger..mmh fix bug haa
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
+# Utility Functions
+def log_activity(user_id, action, description, ip_address=None):
+    """Log user activity"""
+    log = ActivityLog(
+        user_id=user_id,
+        action=action,
+        description=description,
+        ip_address=ip_address or request.remote_addr
+    )
+    db.session.add(log)
+    db.session.commit()
 
-# ---------- Routes ----------
+def calculate_grade(marks):
+    """Calculate letter grade based on marks"""
+    if marks >= 80:
+        return 'A'
+    elif marks >= 70:
+        return 'B+'
+    elif marks >= 60:
+        return 'B'
+    elif marks >= 50:
+        return 'C+'
+    elif marks >= 40:
+        return 'C'
+    elif marks >= 30:
+        return 'D+'
+    elif marks >= 25:
+        return 'D'
+    else:
+        return 'F'
 
-# Home route
+def allowed_file(filename):
+    """Check if file extension is allowed"""
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# Decorators
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Please login first', 'warning')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def role_required(roles):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if session.get('role') not in roles:
+                flash('Access denied: Insufficient permissions', 'danger')
+                return redirect(url_for('dashboard'))
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+def password_change_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        user = User.query.get(session.get('user_id'))
+        if user and user.must_change_password:
+            flash('You must change your password before proceeding', 'warning')
+            return redirect(url_for('change_password'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def student_approved_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if session.get('role') == 'student':
+            student = Student.query.filter_by(user_id=session.get('user_id')).first()
+            if not student or student.status != 'approved':
+                flash('Your account is pending approval by admin', 'info')
+                return render_template('student_pending.html')
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Routes
 @app.route('/')
 def index():
     return render_template('index.html')
 
-# Login route
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
-    
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+        username = request.form['username'].strip()
+        password = request.form['password']
         
-        user = User.query.filter_by(username=username).first()
+        user = User.query.filter_by(username=username, is_active=True).first()
         
-        if user and user.check_password(password):
-            if user.status == 'approved':
-                login_user(user)
-                next_page = request.args.get('next')
-                return redirect(next_page or url_for('dashboard'))
-            else:
-                flash('Your account is pending approval. Please wait for admin approval.', 'warning')
+        if user and check_password_hash(user.password, password):
+            session['user_id'] = user.id
+            session['username'] = user.username
+            session['role'] = user.role
+            session['full_name'] = user.full_name
+            
+            log_activity(user.id, 'LOGIN', f'User {user.username} logged in')
+            
+            flash(f'Welcome back, {user.full_name}!', 'success')
+            
+            if user.must_change_password:
+                return redirect(url_for('change_password'))
+            
+            return redirect(url_for('dashboard'))
         else:
             flash('Invalid username or password', 'danger')
     
     return render_template('login.html')
 
-# Logout route
-@app.route('/logout')
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for('index'))
-
-# Student Registration route
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
-    
     if request.method == 'POST':
-        # Get form data
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        full_name = request.form.get('full_name')
-        roll_number = request.form.get('roll_number')
-        batch = request.form.get('batch')
-        program = request.form.get('program')
-        semester = request.form.get('semester')
+        username = request.form['username'].strip()
+        password = request.form['password']
+        confirm_password = request.form['confirm_password']
+        full_name = request.form['full_name'].strip()
+        email = request.form.get('email', '').strip()
+        registration_number = request.form['registration_number'].strip()
+        phone_number = request.form.get('phone_number', '').strip()
         
-        # Check if username or email exists
-        user_exists = User.query.filter((User.username == username) | (User.email == email)).first()
-        roll_exists = Student.query.filter_by(roll_number=roll_number).first()
-        
-        if user_exists:
-            flash('Username or email already exists', 'danger')
+        # Validation
+        if password != confirm_password:
+            flash('Passwords do not match', 'danger')
             return render_template('register.html')
         
-        if roll_exists:
-            flash('Roll number already exists', 'danger')
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long', 'danger')
             return render_template('register.html')
         
-        # Create user
+        # Check if username or registration number already exists
+        if User.query.filter_by(username=username).first():
+            flash('Username already exists', 'danger')
+            return render_template('register.html')
+        
+        if Student.query.filter_by(registration_number=registration_number).first():
+            flash('Registration number already exists', 'danger')
+            return render_template('register.html')
+        
+        # Create user account
+        hashed_password = generate_password_hash(password)
         new_user = User(
             username=username,
-            email=email,
-            full_name=full_name,
+            password=hashed_password,
             role='student',
-            status='pending'
+            full_name=full_name,
+            email=email,
+            must_change_password=False
         )
-        new_user.set_password(password)
+        
+        db.session.add(new_user)
+        db.session.flush()  # To get the user ID
         
         # Create student profile
         new_student = Student(
-            user=new_user,
-            roll_number=roll_number,
-            batch=batch,
-            program=program,
-            semester=int(semester)
+            user_id=new_user.id,
+            registration_number=registration_number,
+            phone_number=phone_number,
+            status='pending'
         )
         
-        # Save to database
-        db.session.add(new_user)
         db.session.add(new_student)
         db.session.commit()
         
-        # Create admin notification
-        admin_users = User.query.filter_by(role='admin').all()
-        for admin in admin_users:
-            notification = Notification(
-                user_id=admin.id,
-                message=f"New student registration: {full_name}",
-                link=url_for('admin_approve_user', user_id=new_user.id)
-            )
-            db.session.add(notification)
-        
-        db.session.commit()
+        log_activity(new_user.id, 'REGISTER', f'Student {registration_number} registered')
         
         flash('Registration successful! Please wait for admin approval.', 'success')
         return redirect(url_for('login'))
     
     return render_template('register.html')
 
-# Dashboard route - redirects based on user role
+@app.route('/logout')
+@login_required
+def logout():
+    log_activity(session.get('user_id'), 'LOGOUT', f'User {session.get("username")} logged out')
+    session.clear()
+    flash('You have been logged out successfully', 'info')
+    return redirect(url_for('index'))
+
+@app.route('/change_password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    if request.method == 'POST':
+        current_password = request.form['current_password']
+        new_password = request.form['new_password']
+        confirm_password = request.form['confirm_password']
+        new_username = request.form.get('new_username', '').strip()
+        
+        user = User.query.get(session['user_id'])
+        
+        # Verify current password
+        if not check_password_hash(user.password, current_password):
+            flash('Current password is incorrect', 'danger')
+            return render_template('change_password.html')
+        
+        # Validate new password
+        if new_password != confirm_password:
+            flash('New passwords do not match', 'danger')
+            return render_template('change_password.html')
+        
+        if len(new_password) < 6:
+            flash('Password must be at least 6 characters long', 'danger')
+            return render_template('change_password.html')
+        
+        # Check if new username is available (if provided)
+        if new_username and new_username != user.username:
+            if User.query.filter_by(username=new_username).first():
+                flash('Username already exists', 'danger')
+                return render_template('change_password.html')
+            user.username = new_username
+            session['username'] = new_username
+        
+        # Update password
+        user.password = generate_password_hash(new_password)
+        user.must_change_password = False
+        db.session.commit()
+        
+        log_activity(user.id, 'PASSWORD_CHANGE', 'Password changed successfully')
+        
+        flash('Password updated successfully!', 'success')
+        return redirect(url_for('dashboard'))
+    
+    return render_template('change_password.html')
+
 @app.route('/dashboard')
 @login_required
+@student_approved_required
+@password_change_required
 def dashboard():
-    if current_user.role == 'admin':
-        return redirect(url_for('admin_dashboard'))
-    elif current_user.role == 'teacher':
-        return redirect(url_for('teacher_dashboard'))
-    elif current_user.role == 'student':
-        return redirect(url_for('student_dashboard'))
-    else:
-        return redirect(url_for('index'))
-
-# ---------- Admin Routes ----------
-
-# Admin Dashboard
-@app.route('/admin/dashboard')
-@login_required
-def admin_dashboard():
-    if current_user.role != 'admin':
-        flash('Access denied', 'danger')
-        return redirect(url_for('dashboard'))
+    role = session.get('role')
     
-    # Get counts for dashboard
-    pending_users = User.query.filter_by(status='pending').count()
-    total_students = User.query.filter_by(role='student', status='approved').count()
-    total_teachers = User.query.filter_by(role='teacher', status='approved').count()
-    total_courses = Course.query.count()
-    recent_users = User.query.order_by(User.created_at.desc()).limit(5).all()
-    
-    return render_template('admin/dashboard.html', 
-                          pending_users=pending_users,
-                          total_students=total_students,
-                          total_teachers=total_teachers,
-                          total_courses=total_courses,
-                          recent_users=recent_users)
-
-# Admin - Pending Users
-@app.route('/admin/pending-users')
-@login_required
-def admin_pending_users():
-    if current_user.role != 'admin':
-        flash('Access denied', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    pending_users = User.query.filter_by(status='pending').all()
-    return render_template('admin/pending_users.html', pending_users=pending_users)
-
-# Admin - Approve/Reject User
-@app.route('/admin/user/<int:user_id>/approve', methods=['POST'])
-@login_required
-def admin_approve_user(user_id):
-    if current_user.role != 'admin':
-        flash('Access denied', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    user = User.query.get_or_404(user_id)
-    action = request.form.get('action')
-    
-    if action == 'approve':
-        user.status = 'approved'
-        flash(f'User {user.username} has been approved', 'success')
+    if role == 'admin':
+        # Admin dashboard stats
+        total_users = User.query.count()
+        pending_students = Student.query.filter_by(status='pending').count()
+        total_subjects = Subject.query.count()
+        recent_activities = ActivityLog.query.order_by(ActivityLog.timestamp.desc()).limit(10).all()
         
-        # Notify user
-        notification = Notification(
-            user_id=user.id,
-            message="Your account has been approved. You can now log in.",
-            link=url_for('login')
-        )
-        db.session.add(notification)
+        return render_template('admin_dashboard.html',
+                             total_users=total_users,
+                             pending_students=pending_students,
+                             total_subjects=total_subjects,
+                             recent_activities=recent_activities)
     
-    elif action == 'reject':
-        user.status = 'rejected'
-        flash(f'User {user.username} has been rejected', 'warning')
+    elif role == 'teacher':
+        teacher = Teacher.query.filter_by(user_id=session['user_id']).first()
+        assigned_subjects = TeacherSubject.query.filter_by(teacher_id=teacher.id, is_active=True).all()
+        pending_results = Result.query.filter_by(teacher_id=teacher.id, status='submitted').count()
         
-        # Notify user
-        notification = Notification(
-            user_id=user.id,
-            message="Your account registration has been rejected.",
-            link=url_for('login')
-        )
-        db.session.add(notification)
+        return render_template('teacher_dashboard.html',
+                             teacher=teacher,
+                             assigned_subjects=assigned_subjects,
+                             pending_results=pending_results)
     
-    db.session.commit()
-    return redirect(url_for('admin_pending_users'))
+    elif role == 'academic':
+        pending_results = Result.query.filter_by(status='submitted').count()
+        approved_results = Result.query.filter_by(status='approved').count()
+        total_subjects = Subject.query.count()
+        
+        return render_template('academic_dashboard.html',
+                             pending_results=pending_results,
+                             approved_results=approved_results,
+                             total_subjects=total_subjects)
+    
+    elif role == 'student':
+        student = Student.query.filter_by(user_id=session['user_id']).first()
+        results = Result.query.filter_by(student_id=student.id, status='approved').all()
+        
+        # Calculate GPA
+        total_points = 0
+        total_credits = 0
+        for result in results:
+            grade_points = {'A': 4.0, 'B+': 3.5, 'B': 3.0, 'C+': 2.5, 'C': 2.0, 'D+': 1.5, 'D': 1.0, 'F': 0.0}
+            points = grade_points.get(result.grade, 0.0)
+            credits = result.subject.credit_hours
+            total_points += points * credits
+            total_credits += credits
+        
+        gpa = total_points / total_credits if total_credits > 0 else 0.0
+        
+        return render_template('student_dashboard.html',
+                             student=student,
+                             results=results,
+                             gpa=round(gpa, 2))
 
-# Admin - Manage Users
+# Admin Routes
 @app.route('/admin/users')
 @login_required
+@role_required(['admin'])
+@password_change_required
 def admin_users():
-    if current_user.role != 'admin':
-        flash('Access denied', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    role = request.args.get('role', 'all')
-    
-    if role == 'student':
-        users = User.query.filter_by(role='student').all()
-    elif role == 'teacher':
-        users = User.query.filter_by(role='teacher').all()
-    else:
-        users = User.query.filter(User.role != 'admin').all()
-    
-    return render_template('admin/users.html', users=users, selected_role=role)
+    users = User.query.all()
+    return render_template('admin_users.html', users=users)
 
-# Admin - Add Teacher
-@app.route('/admin/add-teacher', methods=['GET', 'POST'])
+@app.route('/admin/add_user', methods=['GET', 'POST'])
 @login_required
-def admin_add_teacher():
-    if current_user.role != 'admin':
-        flash('Access denied', 'danger')
-        return redirect(url_for('dashboard'))
-    
+@role_required(['admin'])
+@password_change_required
+def admin_add_user():
     if request.method == 'POST':
-        # Get form data
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        full_name = request.form.get('full_name')
-        employee_id = request.form.get('employee_id')
-        department = request.form.get('department')
-        designation = request.form.get('designation')
+        role = request.form['role']
+        username = request.form['username'].strip()
+        full_name = request.form['full_name'].strip()
+        email = request.form.get('email', '').strip()
+        password = request.form['password']
         
-        # Check if username or email exists
-        user_exists = User.query.filter((User.username == username) | (User.email == email)).first()
-        employee_exists = Teacher.query.filter_by(employee_id=employee_id).first()
-        
-        if user_exists:
-            flash('Username or email already exists', 'danger')
-            return render_template('admin/add_teacher.html')
-        
-        if employee_exists:
-            flash('Employee ID already exists', 'danger')
-            return render_template('admin/add_teacher.html')
+        # Check if username exists
+        if User.query.filter_by(username=username).first():
+            flash('Username already exists', 'danger')
+            return render_template('admin_add_user.html')
         
         # Create user
+        hashed_password = generate_password_hash(password)
         new_user = User(
             username=username,
-            email=email,
+            password=hashed_password,
+            role=role,
             full_name=full_name,
-            role='teacher',
-            status='approved'  # Admin-added teachers are automatically approved
-        )
-        new_user.set_password(password)
-        
-        # Create teacher profile
-        new_teacher = Teacher(
-            user=new_user,
-            employee_id=employee_id,
-            department=department,
-            designation=designation
+            email=email,
+            must_change_password=True,
+            created_by=session['user_id']
         )
         
-        # Save to database
         db.session.add(new_user)
-        db.session.add(new_teacher)
+        db.session.flush()
+        
+        # Create profile based on role
+        if role == 'teacher':
+            employee_id = request.form['employee_id']
+            department = request.form.get('department', '')
+            
+            teacher_profile = Teacher(
+                user_id=new_user.id,
+                employee_id=employee_id,
+                department=department
+            )
+            db.session.add(teacher_profile)
+        
+        elif role == 'academic':
+            employee_id = request.form['employee_id']
+            department = request.form.get('department', '')
+            
+            academic_profile = Academic(
+                user_id=new_user.id,
+                employee_id=employee_id,
+                department=department
+            )
+            db.session.add(academic_profile)
+        
         db.session.commit()
         
-        flash('Teacher added successfully!', 'success')
-        return redirect(url_for('admin_users', role='teacher'))
-    
-    return render_template('admin/add_teacher.html')
-
-# Admin - Manage Courses
-@app.route('/admin/courses')
-@login_required
-def admin_courses():
-    if current_user.role != 'admin':
-        flash('Access denied', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    courses = Course.query.all()
-    return render_template('admin/courses.html', courses=courses)
-
-# Admin - View Results
-@app.route('/admin/results')
-@login_required
-def admin_results():
-    if current_user.role != 'admin':
-        flash('Access denied', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    # Filter options
-    program = request.args.get('program', '')
-    semester = request.args.get('semester', '')
-    status = request.args.get('status', '')
-    
-    # Base query
-    query = Result.query.join(Student, Result.student_id == Student.id).join(Course, Result.course_id == Course.id)
-    
-    # Apply filters
-    if program:
-        query = query.filter(Student.program == program)
-    if semester:
-        query = query.filter(Result.semester == int(semester))
-    if status:
-        query = query.filter(Result.status == status)
-    
-    results = query.all()
-    
-    # Get unique programs for filter dropdown
-    programs = db.session.query(Student.program).distinct().all()
-    programs = [p[0] for p in programs]
-    
-    return render_template('admin/results.html', 
-                          results=results, 
-                          programs=programs,
-                          selected_program=program,
-                          selected_semester=semester,
-                          selected_status=status)
-
-# Admin - Publish Results
-@app.route('/admin/results/publish', methods=['POST'])
-@login_required
-def admin_publish_results():
-    if current_user.role != 'admin':
-        flash('Access denied', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    # Get IDs of results to publish
-    result_ids = request.form.getlist('result_ids')
-    
-    if not result_ids:
-        flash('No results selected', 'warning')
-        return redirect(url_for('admin_results'))
-    
-    # Update status of selected results
-    for result_id in result_ids:
-        result = Result.query.get(int(result_id))
-        result.status = 'published'
+        log_activity(session['user_id'], 'CREATE_USER', f'Created {role} account: {username}')
         
-        # Create notification for student
-        student = Student.query.get(result.student_id)
-        course = Course.query.get(result.course_id)
-        
-        notification = Notification(
-            user_id=student.user_id,
-            message=f"Your result for {course.course_name} has been published",
-            link=url_for('student_results')
-        )
-        db.session.add(notification)
+        flash(f'{role.title()} account created successfully!', 'success')
+        return redirect(url_for('admin_users'))
     
+    return render_template('admin_add_user.html')
+
+@app.route('/admin/pending_students')
+@login_required
+@role_required(['admin'])
+@password_change_required
+def admin_pending_students():
+    pending_students = Student.query.filter_by(status='pending').all()
+    return render_template('admin_pending_students.html', students=pending_students)
+
+@app.route('/admin/approve_student/<int:student_id>')
+@login_required
+@role_required(['admin'])
+@password_change_required
+def admin_approve_student(student_id):
+    student = Student.query.get_or_404(student_id)
+    student.status = 'approved'
     db.session.commit()
-    flash('Selected results have been published', 'success')
-    return redirect(url_for('admin_results'))
+    
+    log_activity(session['user_id'], 'APPROVE_STUDENT', f'Approved student: {student.registration_number}')
+    
+    flash(f'Student {student.registration_number} approved successfully!', 'success')
+    return redirect(url_for('admin_pending_students'))
 
-# ---------- Teacher Routes ----------
-
-# Teacher Dashboard
-@app.route('/teacher/dashboard')
+@app.route('/admin/reject_student/<int:student_id>')
 @login_required
-def teacher_dashboard():
-    if current_user.role != 'teacher':
-        flash('Access denied', 'danger')
-        return redirect(url_for('dashboard'))
+@role_required(['admin'])
+@password_change_required
+def admin_reject_student(student_id):
+    student = Student.query.get_or_404(student_id)
+    user = User.query.get(student.user_id)
     
-    teacher = Teacher.query.filter_by(user_id=current_user.id).first()
+    # Log before deletion
+    log_activity(session['user_id'], 'REJECT_STUDENT', f'Rejected student: {student.registration_number}')
     
-    # Count courses taught by teacher
-    courses_count = Course.query.filter_by(teacher_id=teacher.id).count()
+    # Delete student and user records
+    db.session.delete(student)
+    db.session.delete(user)
+    db.session.commit()
     
-    # Count students enrolled in teacher's courses
-    students_count = db.session.query(Enrollment.student_id).distinct().join(
-        Course, Enrollment.course_id == Course.id
-    ).filter(Course.teacher_id == teacher.id).count()
-    
-    # Count pending results (entered but not published)
-    pending_results = Result.query.join(
-        Course, Result.course_id == Course.id
-    ).filter(
-        Course.teacher_id == teacher.id,
-        Result.status == 'pending'
-    ).count()
-    
-    # Get recent results added
-    recent_results = Result.query.join(
-        Course, Result.course_id == Course.id
-    ).filter(
-        Course.teacher_id == teacher.id
-    ).order_by(Result.date_added.desc()).limit(5).all()
-    
-    return render_template('teacher/dashboard.html',
-                          teacher=teacher,
-                          courses_count=courses_count,
-                          students_count=students_count,
-                          pending_results=pending_results,
-                          recent_results=recent_results)
+    flash('Student registration rejected and removed', 'info')
+    return redirect(url_for('admin_pending_students'))
 
-# Teacher - Manage Courses
-@app.route('/teacher/courses')
+# Teacher Routes
+@app.route('/teacher/subjects')
 @login_required
-def teacher_courses():
-    if current_user.role != 'teacher':
-        flash('Access denied', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    teacher = Teacher.query.filter_by(user_id=current_user.id).first()
-    courses = Course.query.filter_by(teacher_id=teacher.id).all()
-    
-    return render_template('teacher/courses.html', courses=courses)
+@role_required(['teacher'])
+@password_change_required
+def teacher_subjects():
+    teacher = Teacher.query.filter_by(user_id=session['user_id']).first()
+    assigned_subjects = TeacherSubject.query.filter_by(teacher_id=teacher.id, is_active=True).all()
+    return render_template('teacher_subjects.html', assigned_subjects=assigned_subjects)
 
-# Teacher - Add Course
-@app.route('/teacher/courses/add', methods=['GET', 'POST'])
+@app.route('/teacher/add_result', methods=['GET', 'POST'])
 @login_required
-def teacher_add_course():
-    if current_user.role != 'teacher':
-        flash('Access denied', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    teacher = Teacher.query.filter_by(user_id=current_user.id).first()
+@role_required(['teacher'])
+@password_change_required
+def teacher_add_result():
+    teacher = Teacher.query.filter_by(user_id=session['user_id']).first()
     
     if request.method == 'POST':
-        course_code = request.form.get('course_code')
-        course_name = request.form.get('course_name')
-        credit_hours = float(request.form.get('credit_hours'))
-        semester = int(request.form.get('semester'))
-        program = request.form.get('program')
+        registration_number = request.form['registration_number'].strip()
+        subject_id = int(request.form['subject_id'])
+        marks = float(request.form['marks'])
+        academic_year = request.form['academic_year']
         
-        # Check if course code exists
-        course_exists = Course.query.filter_by(course_code=course_code).first()
+        # Find student
+        student = Student.query.filter_by(registration_number=registration_number, status='approved').first()
+        if not student:
+            flash('Student not found or not approved', 'danger')
+            return redirect(url_for('teacher_add_result'))
         
-        if course_exists:
-            flash('Course code already exists', 'danger')
-            return render_template('teacher/add_course.html')
+        # Get subject and validate semester
+        subject = Subject.query.get(subject_id)
+        semester = subject.semester
         
-        # Create course
-        new_course = Course(
-            course_code=course_code,
-            course_name=course_name,
-            credit_hours=credit_hours,
-            semester=semester,
-            program=program,
-            teacher_id=teacher.id
-        )
+        # Validate marks
+        if marks < 0 or marks > 100:
+            flash('Marks must be between 0 and 100', 'danger')
+            return redirect(url_for('teacher_add_result'))
         
-        # Save to database
-        db.session.add(new_course)
-        db.session.commit()
-        
-        flash('Course added successfully!', 'success')
-        return redirect(url_for('teacher_courses'))
-    
-    return render_template('teacher/add_course.html')
-
-# Teacher - Course Students
-@app.route('/teacher/course/<int:course_id>/students')
-@login_required
-def teacher_course_students(course_id):
-    if current_user.role != 'teacher':
-        flash('Access denied', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    teacher = Teacher.query.filter_by(user_id=current_user.id).first()
-    course = Course.query.filter_by(id=course_id, teacher_id=teacher.id).first_or_404()
-    
-    enrollments = Enrollment.query.filter_by(course_id=course.id).all()
-    
-    return render_template('teacher/course_students.html', course=course, enrollments=enrollments)
-
-# Teacher - Enter Results
-@app.route('/teacher/course/<int:course_id>/results', methods=['GET', 'POST'])
-@login_required
-def teacher_course_results(course_id):
-    if current_user.role != 'teacher':
-        flash('Access denied', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    teacher = Teacher.query.filter_by(user_id=current_user.id).first()
-    course = Course.query.filter_by(id=course_id, teacher_id=teacher.id).first_or_404()
-    
-    if request.method == 'POST':
-        student_id = int(request.form.get('student_id'))
-        midterm_marks = float(request.form.get('midterm_marks', 0))
-        final_marks = float(request.form.get('final_marks', 0))
-        assignment_marks = float(request.form.get('assignment_marks', 0))
-        attendance_marks = float(request.form.get('attendance_marks', 0))
-        semester = int(request.form.get('semester'))
-        academic_year = request.form.get('academic_year')
-        remarks = request.form.get('remarks', '')
-        
-        # Calculate total marks and grade
-        total_marks = midterm_marks + final_marks + assignment_marks + attendance_marks
-        
-        # Determine grade based on total marks
-        grade = ""
-        grade_point = 0.0
-        
-        if total_marks >= 90:
-            grade = "A+"
-            grade_point = 4.0
-        elif total_marks >= 85:
-            grade = "A"
-            grade_point = 3.7
-        elif total_marks >= 80:
-            grade = "A-"
-            grade_point = 3.5
-        elif total_marks >= 75:
-            grade = "B+"
-            grade_point = 3.3
-        elif total_marks >= 70:
-            grade = "B"
-            grade_point = 3.0
-        elif total_marks >= 65:
-            grade = "B-"
-            grade_point = 2.7
-        elif total_marks >= 60:
-            grade = "C+"
-            grade_point = 2.3
-        elif total_marks >= 55:
-            grade = "C"
-            grade_point = 2.0
-        elif total_marks >= 50:
-            grade = "D"
-            grade_point = 1.0
-        else:
-            grade = "F"
-            grade_point = 0.0
+        # Calculate grade
+        grade = calculate_grade(marks)
         
         # Check if result already exists
         existing_result = Result.query.filter_by(
-            student_id=student_id,
-            course_id=course_id,
+            student_id=student.id,
+            subject_id=subject_id,
             semester=semester,
             academic_year=academic_year
         ).first()
         
         if existing_result:
-            # Update existing result
-            existing_result.midterm_marks = midterm_marks
-            existing_result.final_marks = final_marks
-            existing_result.assignment_marks = assignment_marks
-            existing_result.attendance_marks = attendance_marks
-            existing_result.total_marks = total_marks
-            existing_result.grade = grade
-            existing_result.grade_point = grade_point
-            existing_result.remarks = remarks
-            existing_result.date_added = datetime.utcnow()
+            if existing_result.status != 'submitted':
+                flash('Result already approved and cannot be modified', 'danger')
+                return redirect(url_for('teacher_add_result'))
             
-            flash('Result updated successfully!', 'success')
+            # Update existing result
+            existing_result.marks = marks
+            existing_result.grade = grade
+            existing_result.submitted_at = datetime.utcnow()
+            
+            log_activity(session['user_id'], 'UPDATE_RESULT', 
+                        f'Updated result for {registration_number} in {subject.subject_code}')
+            flash('Result updated successfully', 'success')
         else:
             # Create new result
             new_result = Result(
-                student_id=student_id,
-                course_id=course_id,
-                midterm_marks=midterm_marks,
-                final_marks=final_marks,
-                assignment_marks=assignment_marks,
-                attendance_marks=attendance_marks,
-                total_marks=total_marks,
+                student_id=student.id,
+                subject_id=subject_id,
+                teacher_id=teacher.id,
+                marks=marks,
                 grade=grade,
-                grade_point=grade_point,
-                remarks=remarks,
                 semester=semester,
                 academic_year=academic_year,
-                status='pending'
+                status='submitted'
             )
-            
             db.session.add(new_result)
-            flash('Result added successfully!', 'success')
-        
-        # Create notification for admin
-        admin_users = User.query.filter_by(role='admin').all()
-        student = Student.query.get(student_id)
-        
-        for admin in admin_users:
-            notification = Notification(
-                user_id=admin.id,
-                message=f"New result added for {student.user.full_name} in {course.course_name}",
-                link=url_for('admin_results')
-            )
-            db.session.add(notification)
+            
+            log_activity(session['user_id'], 'ADD_RESULT', 
+                        f'Added result for {registration_number} in {subject.subject_code}')
+            flash('Result submitted successfully', 'success')
         
         db.session.commit()
-        return redirect(url_for('teacher_course_results', course_id=course_id))
+        return redirect(url_for('teacher_subjects'))
     
-    # Get students enrolled in this course
-    enrollments = Enrollment.query.filter_by(course_id=course.id).all()
-    
-    # Get existing results for this course
-    results = Result.query.filter_by(course_id=course.id).all()
-    
-    return render_template('teacher/course_results.html', 
-                          course=course, 
-                          enrollments=enrollments,
-                          results=results)
+    # Get assigned subjects
+    assigned_subjects = TeacherSubject.query.filter_by(teacher_id=teacher.id, is_active=True).all()
+    return render_template('teacher_add_result.html', assigned_subjects=assigned_subjects)
 
-# ---------- Student 
-
-# Student Dashboard
-@app.route('/student/dashboard')
+# Academic Routes
+@app.route('/academic/results')
 @login_required
-def student_dashboard():
-    if current_user.role != 'student':
-        flash('Access denied', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    student = Student.query.filter_by(user_id=current_user.id).first()
-    
-    # Count enrolled courses
-    enrolled_courses = Enrollment.query.filter_by(student_id=student.id).count()
-    
-    # Count published results
-    published_results = Result.query.filter_by(student_id=student.id, status='published').count()
-    
-    # Calculate CGPA from published results
-    results = Result.query.filter_by(student_id=student.id, status='published').all()
-    
-    total_credit_points = 0
-    total_credits = 0
-    
-    for result in results:
-        course = Course.query.get(result.course_id)
-        total_credit_points += result.grade_point * course.credit_hours
-        total_credits += course.credit_hours
-    
-    cgpa = total_credit_points / total_credits if total_credits > 0 else 0
-    
-    # Get recent results
-    recent_results = Result.query.filter_by(
-        student_id=student.id, 
-        status='published'
-    ).order_by(Result.date_added.desc()).limit(5).all()
-    
-    return render_template('student/dashboard.html',
-                          student=student,
-                          enrolled_courses=enrolled_courses,
-                          published_results=published_results,
-                          cgpa=round(cgpa, 2),
-                          recent_results=recent_results)
+@role_required(['academic'])
+@password_change_required
+def academic_results():
+    results = Result.query.filter_by(status='submitted').all()
+    return render_template('academic_results.html', results=results)
 
-# Student - View Courses
-@app.route('/student/courses')
+@app.route('/academic/approve_result/<int:result_id>')
 @login_required
-def student_courses():
-    if current_user.role != 'student':
-        flash('Access denied', 'danger')
-        return redirect(url_for('dashboard'))
+@role_required(['academic'])
+@password_change_required
+def academic_approve_result(result_id):
+    result = Result.query.get_or_404(result_id)
+    result.status = 'approved'
+    result.reviewed_by = session['user_id']
+    result.reviewed_at = datetime.utcnow()
+    db.session.commit()
     
-    student = Student.query.filter_by(user_id=current_user.id).first()
+    log_activity(session['user_id'], 'APPROVE_RESULT', 
+                f'Approved result for student {result.student.registration_number}')
     
-    # Get courses for current semester
-    current_semester = student.semester
+    flash('Result approved successfully', 'success')
+    return redirect(url_for('academic_results'))
+
+@app.route('/academic/subjects')
+@login_required
+@role_required(['academic', 'admin'])
+@password_change_required
+def academic_subjects():
+    subjects = Subject.query.all()
+    return render_template('academic_subjects.html', subjects=subjects)
+
+@app.route('/academic/add_subject', methods=['GET', 'POST'])
+@login_required
+@role_required(['academic', 'admin'])
+@password_change_required
+def academic_add_subject():
+    if request.method == 'POST':
+        subject_code = request.form['subject_code'].strip().upper()
+        subject_name = request.form['subject_name'].strip()
+        semester = int(request.form['semester'])
+        credit_hours = int(request.form['credit_hours'])
+        
+        # Check if subject code exists
+        if Subject.query.filter_by(subject_code=subject_code).first():
+            flash('Subject code already exists', 'danger')
+            return render_template('academic_add_subject.html')
+        
+        # Create subject
+        new_subject = Subject(
+            subject_code=subject_code,
+            subject_name=subject_name,
+            semester=semester,
+            credit_hours=credit_hours,
+            created_by=session['user_id']
+        )
+        
+        db.session.add(new_subject)
+        db.session.commit()
+        
+        log_activity(session['user_id'], 'ADD_SUBJECT', f'Added subject: {subject_code}')
+        
+        flash('Subject added successfully', 'success')
+        return redirect(url_for('academic_subjects'))
     
-    # Get enrolled courses
-    enrollments = Enrollment.query.filter_by(student_id=student.id).all()
-    enrolled_course_ids = [e.course_id for e in enrollments]
+    return render_template('academic_add_subject.html')
+
+# Profile Management
+@app.route('/profile', methods=['GET', 'POST'])
+@login_required
+@password_change_required
+def profile():
+    user = User.query.get(session['user_id'])
     
-    # Get available courses for enrollment (not already enrolled)
-    available_courses = Course.query.filter(
-        Course.program == student.program,
-        Course.semester == current_semester,
-        ~Course.id.in_(enrolled_course_ids) if enrolled_course_ids else True
+    if request.method == 'POST':
+        # Handle profile picture upload
+        if 'profile_picture' in request.files:
+            file = request.files['profile_picture']
+            if file and file.filename and allowed_file(file.filename):
+                filename = str(uuid.uuid4()) + '.' + file.filename.rsplit('.', 1)[1].lower()
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(file_path)
+                
+                # Delete old profile picture
+                if user.profile_picture:
+                    old_file_path = os.path.join(app.config['UPLOAD_FOLDER'], user.profile_picture)
+                    if os.path.exists(old_file_path):
+                        os.remove(old_file_path)
+                
+                user.profile_picture = filename
+                db.session.commit()
+                
+                log_activity(user.id, 'UPDATE_PROFILE', 'Updated profile picture')
+                flash('Profile picture updated successfully', 'success')
+        
+        # Handle other profile updates
+        full_name = request.form.get('full_name', '').strip()
+        email = request.form.get('email', '').strip()
+        
+        if full_name:
+            user.full_name = full_name
+            session['full_name'] = full_name
+        
+        if email:
+            user.email = email
+        
+        db.session.commit()
+        log_activity(user.id, 'UPDATE_PROFILE', 'Updated profile information')
+        flash('Profile updated successfully', 'success')
+        
+        return redirect(url_for('profile'))
+    
+    return render_template('profile.html', user=user)
+
+# API Routes for AJAX requests
+@app.route('/api/search_students')
+@login_required
+@role_required(['teacher', 'academic', 'admin'])
+def api_search_students():
+    query = request.args.get('q', '').strip()
+    if len(query) < 2:
+        return jsonify([])
+    
+    students = Student.query.filter(
+        Student.registration_number.contains(query),
+        Student.status == 'approved'
+    ).limit(10).all()
+    
+    results = []
+    for student in students:
+        results.append({
+            'id': student.id,
+            'registration_number': student.registration_number,
+            'name': student.user.full_name,
+            'semester': student.current_semester
+        })
+    
+    return jsonify(results)
+
+@app.route('/api/subject_teachers/<int:subject_id>')
+@login_required
+@role_required(['academic', 'admin'])
+def api_subject_teachers(subject_id):
+    assigned_teachers = TeacherSubject.query.filter_by(
+        subject_id=subject_id, 
+        is_active=True
     ).all()
     
-    return render_template('student/courses.html', 
-                          student=student,
-                          enrollments=enrollments,
-                          available_courses=available_courses)
+    results = []
+    for assignment in assigned_teachers:
+        results.append({
+            'teacher_id': assignment.teacher.id,
+            'teacher_name': assignment.teacher.user.full_name,
+            'employee_id': assignment.teacher.employee_id
+        })
+    
+    return jsonify(results)
 
-# Student - Enroll in Course
-@app.route('/student/enroll', methods=['POST'])
+# Reports and Analytics
+@app.route('/reports')
 @login_required
-def student_enroll():
-    if current_user.role != 'student':
-        flash('Access denied', 'danger')
-        return redirect(url_for('dashboard'))
+@role_required(['admin', 'academic'])
+@password_change_required
+def reports():
+    # Performance statistics
+    total_students = Student.query.filter_by(status='approved').count()
+    total_results = Result.query.filter_by(status='approved').count()
+    pending_results = Result.query.filter_by(status='submitted').count()
     
-    student = Student.query.filter_by(user_id=current_user.id).first()
-    course_id = int(request.form.get('course_id'))
+    # Grade distribution
+    grade_distribution = {}
+    grades = ['A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'F']
+    for grade in grades:
+        count = Result.query.filter_by(grade=grade, status='approved').count()
+        grade_distribution[grade] = count
     
-    # Check if already enrolled
-    existing_enrollment = Enrollment.query.filter_by(
-        student_id=student.id,
-        course_id=course_id
-    ).first()
+    # Top performing students
+    top_students = db.session.query(
+        Student.registration_number,
+        User.full_name,
+        db.func.avg(Result.marks).label('avg_marks')
+    ).join(User).join(Result).filter(
+        Result.status == 'approved'
+    ).group_by(
+        Student.id
+    ).order_by(
+        db.func.avg(Result.marks).desc()
+    ).limit(10).all()
     
-    if existing_enrollment:
-        flash('You are already enrolled in this course', 'warning')
-        return redirect(url_for('student_courses'))
-    
-    # Get course info
-    course = Course.query.get_or_404(course_id)
-    
-    # Create enrollment
-    academic_year = datetime.utcnow().strftime('%Y-%Y')  # Current academic year
-    new_enrollment = Enrollment(
-        student_id=student.id,
-        course_id=course_id,
-        semester=student.semester,
-        academic_year=academic_year
-    )
-    
-    db.session.add(new_enrollment)
-    
-    # Notify teacher
-    teacher = Teacher.query.get(course.teacher_id)
-    notification = Notification(
-        user_id=teacher.user_id,
-        message=f"{student.user.full_name} has enrolled in your course: {course.course_name}",
-        link=url_for('teacher_course_students', course_id=course.id)
-    )
-    db.session.add(notification)
-    
-    db.session.commit()
-    flash(f'Successfully enrolled in {course.course_name}', 'success')
-    return redirect(url_for('student_courses'))
+    return render_template('reports.html',
+                         total_students=total_students,
+                         total_results=total_results,
+                         pending_results=pending_results,
+                         grade_distribution=grade_distribution,
+                         top_students=top_students)
 
-# Student - View Results
-@app.route('/student/results')
+@app.route('/assign_teacher', methods=['GET', 'POST'])
 @login_required
-def student_results():
-    if current_user.role != 'student':
-        flash('Access denied', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    student = Student.query.filter_by(user_id=current_user.id).first()
-    
-    # Get published results
-    results = Result.query.filter_by(student_id=student.id, status='published').all()
-    
-    # Calculate semester-wise GPA
-    semesters = {}
-    for result in results:
-        if result.semester not in semesters:
-            semesters[result.semester] = {
-                'results': [],
-                'total_credit_points': 0,
-                'total_credits': 0,
-                'gpa': 0
-            }
+@role_required(['admin', 'academic'])
+@password_change_required
+def assign_teacher():
+    if request.method == 'POST':
+        teacher_id = int(request.form['teacher_id'])
+        subject_id = int(request.form['subject_id'])
         
-        semesters[result.semester]['results'].append(result)
-        course = Course.query.get(result.course_id)
-        semesters[result.semester]['total_credit_points'] += result.grade_point * course.credit_hours
-        semesters[result.semester]['total_credits'] += course.credit_hours
+        # Check if assignment already exists
+        existing = TeacherSubject.query.filter_by(
+            teacher_id=teacher_id,
+            subject_id=subject_id,
+            is_active=True
+        ).first()
+        
+        if existing:
+            flash('Teacher is already assigned to this subject', 'warning')
+        else:
+            assignment = TeacherSubject(
+                teacher_id=teacher_id,
+                subject_id=subject_id,
+                assigned_by=session['user_id']
+            )
+            db.session.add(assignment)
+            db.session.commit()
+            
+            teacher = Teacher.query.get(teacher_id)
+            subject = Subject.query.get(subject_id)
+            
+            log_activity(session['user_id'], 'ASSIGN_TEACHER', 
+                        f'Assigned {teacher.user.full_name} to {subject.subject_code}')
+            
+            flash('Teacher assigned successfully', 'success')
+        
+        return redirect(url_for('assign_teacher'))
     
-    # Calculate GPA for each semester
-    for semester in semesters:
-        if semesters[semester]['total_credits'] > 0:
-            semesters[semester]['gpa'] = round(semesters[semester]['total_credit_points'] / semesters[semester]['total_credits'], 2)
+    teachers = Teacher.query.all()
+    subjects = Subject.query.all()
+    assignments = TeacherSubject.query.filter_by(is_active=True).all()
     
-    # Calculate overall CGPA
-    total_credit_points = sum(sem['total_credit_points'] for sem in semesters.values())
-    total_credits = sum(sem['total_credits'] for sem in semesters.values())
-    cgpa = round(total_credit_points / total_credits, 2) if total_credits > 0 else 0
-    
-    return render_template('student/results.html', 
-                          student=student,
-                          semesters=semesters,
-                          cgpa=cgpa)
+    return render_template('assign_teacher.html', 
+                         teachers=teachers, 
+                         subjects=subjects, 
+                         assignments=assignments)
 
-# ---------- Notification Routes ----------
-
-# Notifications view
-@app.route('/notifications')
+@app.route('/remove_teacher_assignment/<int:assignment_id>')
 @login_required
-def notifications():
-    user_notifications = Notification.query.filter_by(
-        user_id=current_user.id
-    ).order_by(Notification.created_at.desc()).all()
+@role_required(['admin', 'academic'])
+@password_change_required
+def remove_teacher_assignment(assignment_id):
+    assignment = TeacherSubject.query.get_or_404(assignment_id)
+    assignment.is_active = False
+    db.session.commit()
     
-    # Mark notifications as read
-    for notification in user_notifications:
-        if not notification.is_read:
-            notification.is_read = True
+    log_activity(session['user_id'], 'REMOVE_ASSIGNMENT', 
+                f'Removed teacher assignment: {assignment.teacher.user.full_name} from {assignment.subject.subject_code}')
+    
+    flash('Teacher assignment removed', 'success')
+    return redirect(url_for('assign_teacher'))
+
+@app.route('/system_logs')
+@login_required
+@role_required(['admin'])
+@password_change_required
+def system_logs():
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    
+    logs = ActivityLog.query.order_by(
+        ActivityLog.timestamp.desc()
+    ).paginate(
+        page=page, 
+        per_page=per_page, 
+        error_out=False
+    )
+    
+    return render_template('system_logs.html', logs=logs)
+
+@app.route('/toggle_user_status/<int:user_id>')
+@login_required
+@role_required(['admin'])
+@password_change_required
+def toggle_user_status(user_id):
+    user = User.query.get_or_404(user_id)
+    
+    if user.id == session['user_id']:
+        flash('You cannot deactivate your own account', 'danger')
+        return redirect(url_for('admin_users'))
+    
+    user.is_active = not user.is_active
+    status = 'activated' if user.is_active else 'deactivated'
     
     db.session.commit()
     
-    return render_template('notifications.html', notifications=user_notifications)
+    log_activity(session['user_id'], 'TOGGLE_USER_STATUS', 
+                f'User {user.username} {status}')
+    
+    flash(f'User {user.username} has been {status}', 'success')
+    return redirect(url_for('admin_users'))
 
-#app entry point ----------
-
-@app.context_processor
-def inject_unread_notifications():
-    """Inject unread notifications count into all templates"""
-    if current_user.is_authenticated:
-        unread_count = Notification.query.filter_by(
-            user_id=current_user.id,
-            is_read=False
-        ).count()
-        return {'unread_notifications': unread_count}
-    return {'unread_notifications': 0}
-
-# Initialize the database
-def create_admin():
-    """Create admin user if not exists"""
-    admin = User.query.filter_by(username='admin').first()
-    if not admin:
-        admin_user = User(
-            username='admin',
-            email='admin@college.edu',
-            full_name='System Administrator',
-            role='admin',
-            status='approved'
-        )
-        admin_user.set_password('admin123')  # Default password
-        db.session.add(admin_user)
+@app.route('/academic/edit_result/<int:result_id>', methods=['GET', 'POST'])
+@login_required
+@role_required(['academic'])
+@password_change_required
+def academic_edit_result(result_id):
+    result = Result.query.get_or_404(result_id)
+    
+    if request.method == 'POST':
+        new_marks = float(request.form['marks'])
+        comments = request.form.get('comments', '').strip()
+        
+        if new_marks < 0 or new_marks > 100:
+            flash('Marks must be between 0 and 100', 'danger')
+            return render_template('academic_edit_result.html', result=result)
+        
+        old_marks = result.marks
+        result.marks = new_marks
+        result.grade = calculate_grade(new_marks)
+        result.comments = comments
+        result.reviewed_by = session['user_id']
+        result.reviewed_at = datetime.utcnow()
+        
         db.session.commit()
-        print("Admin user created!")
+        
+        log_activity(session['user_id'], 'EDIT_RESULT', 
+                    f'Modified result for {result.student.registration_number}: {old_marks} -> {new_marks}')
+        
+        flash('Result updated successfully', 'success')
+        return redirect(url_for('academic_results'))
+    
+    return render_template('academic_edit_result.html', result=result)
 
-if __name__ == '__main__':
+@app.route('/academic/reject_result/<int:result_id>', methods=['POST'])
+@login_required
+@role_required(['academic'])
+@password_change_required
+def academic_reject_result(result_id):
+    result = Result.query.get_or_404(result_id)
+    comments = request.form.get('comments', '').strip()
+    
+    result.status = 'rejected'
+    result.comments = comments
+    result.reviewed_by = session['user_id']
+    result.reviewed_at = datetime.utcnow()
+    
+    db.session.commit()
+    
+    log_activity(session['user_id'], 'REJECT_RESULT', 
+                f'Rejected result for {result.student.registration_number}')
+    
+    flash('Result rejected and sent back to teacher', 'info')
+    return redirect(url_for('academic_results'))
+
+@app.route('/teacher/rejected_results')
+@login_required
+@role_required(['teacher'])
+@password_change_required
+def teacher_rejected_results():
+    teacher = Teacher.query.filter_by(user_id=session['user_id']).first()
+    rejected_results = Result.query.filter_by(
+        teacher_id=teacher.id, 
+        status='rejected'
+    ).all()
+    
+    return render_template('teacher_rejected_results.html', 
+                         rejected_results=rejected_results)
+
+@app.route('/teacher/resubmit_result/<int:result_id>', methods=['POST'])
+@login_required
+@role_required(['teacher'])
+@password_change_required
+def teacher_resubmit_result(result_id):
+    result = Result.query.get_or_404(result_id)
+    
+    if result.status != 'rejected':
+        flash('This result cannot be resubmitted', 'danger')
+        return redirect(url_for('teacher_rejected_results'))
+    
+    new_marks = float(request.form['marks'])
+    
+    if new_marks < 0 or new_marks > 100:
+        flash('Marks must be between 0 and 100', 'danger')
+        return redirect(url_for('teacher_rejected_results'))
+    
+    result.marks = new_marks
+    result.grade = calculate_grade(new_marks)
+    result.status = 'submitted'
+    result.submitted_at = datetime.utcnow()
+    result.comments = None  # Clear previous comments
+    
+    db.session.commit()
+    
+    log_activity(session['user_id'], 'RESUBMIT_RESULT', 
+                f'Resubmitted result for {result.student.registration_number}')
+    
+    flash('Result resubmitted successfully', 'success')
+    return redirect(url_for('teacher_rejected_results'))
+
+# Error Handlers
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template('errors/404.html'), 404
+
+@app.errorhandler(403)
+def forbidden_error(error):
+    return render_template('errors/403.html'), 403
+
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    return render_template('errors/500.html'), 500
+
+# Initialize Database
+def init_db():
+    """Initialize database with default admin user"""
     with app.app_context():
         db.create_all()
-        create_admin()
-    app.run(debug=True)
+        
+        # Create default admin if not exists
+        admin_user = User.query.filter_by(username='admin').first()
+        if not admin_user:
+            default_admin = User(
+                username='admin',
+                password=generate_password_hash('admin123'),
+                role='admin',
+                full_name='System Administrator',
+                email='admin@jriit.ac.tz',
+                must_change_password=True,
+                is_active=True
+            )
+            db.session.add(default_admin)
+            
+            # Add some sample subjects
+            subjects_data = [
+                ('CS101', 'Introduction to Computer Science', 1, 3),
+                ('MATH101', 'Calculus I', 1, 4),
+                ('ENG101', 'English Communication', 1, 2),
+                ('CS201', 'Data Structures', 2, 3),
+                ('MATH201', 'Calculus II', 2, 4),
+                ('CS301', 'Database Systems', 3, 3),
+                ('CS302', 'Software Engineering', 3, 4),
+                ('CS401', 'Machine Learning', 4, 3),
+                ('CS501', 'Advanced Algorithms', 5, 4),
+                ('CS601', 'Final Year Project', 6, 6),
+            ]
+            
+            for code, name, semester, credits in subjects_data:
+                subject = Subject(
+                    subject_code=code,
+                    subject_name=name,
+                    semester=semester,
+                    credit_hours=credits,
+                    created_by=1  # Will be created after admin user
+                )
+                db.session.add(subject)
+            
+            db.session.commit()
+            print("Database initialized with default admin user (username: admin, password: admin123)")
+            print("Please change the default password after first login!")
+
+# Application startup
+if __name__ == '__main__':
+    init_db()
+    app.run(debug=True, host='0.0.0.0', port=5000)
