@@ -1,47 +1,73 @@
 {% extends 'base.html' %}
-
+{% block title %}Student Dashboard{% endblock %}
 {% block content %}
-<h2>Student Dashboard</h2>
-<p>Welcome, {{ student.name }}!</p>
-<p><strong>Roll Number:</strong> {{ student.roll_number }}</p>
-
-<div class="card mt-4">
-    <div class="card-header">
-        <h4>Your Results</h4>
-    </div>
-    <div class="card-body">
-        {% if results %}
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>Course Code</th>
-                            <th>Course Name</th>
-                            <th>Semester</th>
-                            <th>Marks</th>
-                            <th>Grade</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for result in results %}
-                            <tr>
-                                <td>{{ result.course_code }}</td>
-                                <td>{{ result.course_name }}</td>
-                                <td>{{ result.semester }}</td>
-                                <td>{{ result.marks }}</td>
-                                <td>
-                                    <span class="badge {% if result.grade == 'F' %}bg-danger{% elif result.grade == 'A+' %}bg-success{% else %}bg-primary{% endif %}">
-                                        {{ result.grade }}
-                                    </span>
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+<div class="row">
+    <div class="col-md-12">
+        <h2 class="mb-4">Welcome, {{ student.full_name }}!</h2>
+        <div class="card mb-4 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Student Information</h5>
+                <p><strong>Roll Number:</strong> {{ student.roll_number }}</p>
+                <p><strong>Course:</strong> {{ student.course }}</p>
+                <p><strong>Status:</strong> 
+                    {% if student.status == 'approved' %}
+                        <span class="badge bg-success">Approved</span>
+                    {% elif student.status == 'pending' %}
+                        <span class="badge bg-warning text-dark">Pending</span>
+                    {% else %}
+                        <span class="badge bg-danger">Rejected</span>
+                    {% endif %}
+                </p>
             </div>
-        {% else %}
-            <p>No results available yet.</p>
-        {% endif %}
+        </div>
     </div>
 </div>
+
+{% if results_by_semester %}
+    {% for semester, subjects in results_by_semester.items() %}
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Semester {{ semester }}</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Subject Code</th>
+                                <th>Subject Name</th>
+                                <th>Marks</th>
+                                <th>Grade</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in subjects %}
+                                <tr>
+                                    <td>{{ entry.subject.subject_code }}</td>
+                                    <td>{{ entry.subject.subject_name }}</td>
+                                    <td>{{ entry.result.marks }}</td>
+                                    <td><strong>{{ entry.result.grade }}</strong></td>
+                                    <td>
+                                        {% if entry.result.status == 'approved' %}
+                                            <span class="badge bg-success">Approved</span>
+                                        {% elif entry.result.status == 'pending' %}
+                                            <span class="badge bg-warning text-dark">Pending</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Rejected</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+{% else %}
+    <div class="alert alert-info text-center">
+        No approved results found. Please check again later.
+    </div>
+{% endif %}
 {% endblock %}
