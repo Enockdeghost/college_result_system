@@ -1190,13 +1190,6 @@ if __name__ == '__main__':
             )
             db.session.add(admin_user)
             db.session.commit()
-            print("=" * 50)
-            print("🎓 JRIIT ACADEMIC RESULT MANAGEMENT SYSTEM")
-            print("=" * 50)
-            print("✅ Default admin user created successfully!")
-            print("👤 Username: admin")
-            print("🔑 Password: admin123")
-            print("🌐 Access: http://localhost:5000")
-            print("=" * 50)
+            
     
     app.run(debug=True, host='0.0.0.0', port=5000)
