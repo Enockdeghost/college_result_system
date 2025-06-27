@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Pending Approval{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-center align-items-center vh-100">
+  <div class="card shadow-sm p-4" style="max-width: 500px; width: 100%;">
+    <div class="text-center">
+      <h2 class="mb-3">Account Pending Approval</h2>
+      <p class="lead mb-4">
+        Hello {{ student.full_name }}, your registration is currently under review.
+      </p>
+      <p>
+        Please wait patiently while our administration verifies your information. You will be notified via email once your account has been approved.
+      </p>
+      <div class="mt-4">
+        <a href="{{ url_for('logout') }}" class="btn btn-outline-secondary">
+          Logout
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
