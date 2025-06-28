@@ -1,3 +1,4 @@
+#====usisahau ku import====
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -6,7 +7,7 @@ from functools import wraps
 from datetime import datetime
 import os
 
-# ===== CONFIGURATIONS =====
+# ===== CONFIGURATIONS ===
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///jriit_results.db'
@@ -19,7 +20,7 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 db = SQLAlchemy(app)
 
-# ===== DATABASE MODELS =====
+# ===== DATABASE MODELS ===
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -1190,13 +1191,6 @@ if __name__ == '__main__':
             )
             db.session.add(admin_user)
             db.session.commit()
-            print("=" * 50)
-            print("🎓 JRIIT ACADEMIC RESULT MANAGEMENT SYSTEM")
-            print("=" * 50)
-            print("✅ Default admin user created successfully!")
-            print("👤 Username: admin")
-            print("🔑 Password: admin123")
-            print("🌐 Access: http://localhost:5000")
-            print("=" * 50)
+            
     
     app.run(debug=True, host='0.0.0.0', port=5000)
