@@ -7,7 +7,7 @@ from functools import wraps
 from datetime import datetime
 import os
 
-# ===== CONFIGURATIONS ===
+# CONFIGURATIONS 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///jriit_results.db'
@@ -15,12 +15,11 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'static/uploads/profiles'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
-# Create upload directory if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 db = SQLAlchemy(app)
 
-# ===== DATABASE MODELS ===
+# DATABASE MODELS 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -1175,12 +1174,11 @@ def internal_error(error):
     db.session.rollback()
     return render_template('errors/500.html'), 500
 
-# ===== INITIALIZE DATABASE AND RUN APP =====
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         
-        # Create default admin user if not exists
+        # error
         admin = User.query.filter_by(username='admin').first()
         if not admin:
             admin_user = User(
